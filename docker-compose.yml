@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  # 1. The MongoDB Database
+  user-db:
+    image: mongo:latest
+    container_name: user-db
+    ports:
+      - "27017:27017"
+    volumes:
+      - user-db-data:/data/db
+
+  # 2. Your User Service
+  user-service:
+    build: ./UserService # Tells Docker to look inside the UserService folder for the Dockerfile
+    container_name: user-service
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - MONGO_URI=mongodb://user-db:27017/user_db
+    depends_on:
+      - user-db
+
+# A persistent hard drive to keep your database data safe
+volumes:
+  user-db-data:
