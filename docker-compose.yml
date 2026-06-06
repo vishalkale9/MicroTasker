@@ -1,7 +1,7 @@
-version: '3.8'
-
 services:
-  # 1. The MongoDB Database
+  # ==============================
+  # 1. USER SERVICE (Port 3001)
+  # ==============================
   user-db:
     image: mongo:latest
     container_name: user-db
@@ -10,9 +10,8 @@ services:
     volumes:
       - user-db-data:/data/db
 
-  # 2. Your User Service
   user-service:
-    build: ./UserService # Tells Docker to look inside the UserService folder for the Dockerfile
+    build: ./UserService 
     container_name: user-service
     ports:
       - "3001:3001"
@@ -22,6 +21,54 @@ services:
     depends_on:
       - user-db
 
-# A persistent hard drive to keep your database data safe
+  # ==============================
+  # 2. TASK SERVICE (Port 3002)
+  # ==============================
+  task-db:
+    image: mongo:latest
+    container_name: task-db
+    ports:
+      - "27018:27017" # Notice we map to 27018 on the outside so it doesn't crash with user-db!
+    volumes:
+      - task-db-data:/data/db
+
+  task-service:
+    build: ./TaskService
+    container_name: task-service
+    ports:
+      - "3002:3002"
+    environment:
+      - PORT=3002
+      - MONGO_URI=mongodb://task-db:27017/task_db # Connects to task-db!
+    depends_on:
+      - task-db
+
+  # ==============================
+  # 3. RABBITMQ (The Post Office)
+  # ==============================
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+
+  # ==============================
+  # 4. NOTIFICATION SERVICE (Port 3003)
+  # ==============================
+  noti-service:
+    build: ./Noti-service # Matches your folder name!
+    container_name: noti-service
+    ports:
+      - "3003:3003"
+    environment:
+      - PORT=3003
+    depends_on:
+      - rabbitmq  # Tells Docker to start RabbitMQ first
+
+
+# Persistent hard drives for BOTH databases
 volumes:
   user-db-data:
+  task-db-data: 

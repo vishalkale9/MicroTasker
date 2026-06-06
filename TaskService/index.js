@@ -2,6 +2,7 @@ import express from 'express';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
 import Task from './models/Task.js';
+import amqp from 'amqplib';
 
 dotenv.config();
 
@@ -14,16 +15,36 @@ mongoose.connect(process.env.MONGO_URI)
     .catch((err) => console.log('❌ Task DB connection error:', err));
 
 // --- 2. CREATE A TASK ---
+// --- 2. CREATE A TASK ---
 app.post('/tasks', async (req, res) => {
     try {
         const { title, description, assignedTo } = req.body;
-
-        // In the future, we could check if assignedTo is a valid User ID here
-
         const newTask = new Task({ title, description, assignedTo });
         await newTask.save();
 
-        // (LATER: Here is where we will send the RabbitMQ message!)
+        // --- NEW: SEND MESSAGE TO RABBITMQ ---
+        try {
+            const connection = await amqp.connect('amqp://rabbitmq');
+            const channel = await connection.createChannel();
+            const queue = 'task_notifications';
+
+            await channel.assertQueue(queue, { durable: true });
+
+            const message = JSON.stringify({
+                title: newTask.title,
+                assignedTo: newTask.assignedTo
+            });
+
+            channel.sendToQueue(queue, Buffer.from(message));
+            console.log("📨 Message sent to RabbitMQ!");
+
+            setTimeout(() => {
+                connection.close();
+            }, 500);
+        } catch (err) {
+            console.log("❌ RabbitMQ Sending Error:", err);
+        }
+        // -------------------------------------
 
         res.status(201).json({ message: "Task created successfully", task: newTask });
     } catch (error) {
